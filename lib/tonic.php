@@ -66,7 +66,9 @@ class Request {
             'js' => 'application/javascript',
             'json' => 'application/json',
             'xml' => 'text/xml',
+            'vcf' => 'text/directory',
             'rss' => 'application/rss+xml',
+            'rdf' => 'application/rdf+xml',
             'atom' => 'application/atom+xml',
             'gz' => 'application/x-gzip',
             'tar' => 'application/x-tar',
@@ -713,7 +715,7 @@ class Response {
      * @codeCoverageIgnore
      */
     function __toString() {
-        $str = 'HTTP/1.1 '.$this->code;
+        $str = 'HTTP/1.1 '.$this->code.' '.$this->getStatusCodeMessage($this->code);
         foreach ($this->headers as $name => $value) {
             $str .= "\n".$name.': '.$value;
         }
@@ -799,16 +801,46 @@ class Response {
                 $this->addHeader('Content-Length', strlen($this->body));
             }
             
-            header('HTTP/1.1 '.$this->code);
+            header('HTTP/1.1 '.$this->code.' '.$this->getStatusCodeMessage($this->code));
             foreach ($this->headers as $header => $value) {
                 header($header.': '.$value);
             }
         }
         
-        echo $this->body;
+        if ($this->code != 304) {
+                echo $this->body;
+        }
         
     }
     
+	function getStatusCodeMessage($status) {
+	
+                $codes = array(
+			200 => 'OK',
+			304 => 'Not Modified',
+			400 => 'Bad Request',
+			401 => 'Unauthorized',
+			404 => 'Not Found',
+			500 => 'Internal Server Error'
+		);
+		return (isset($codes[$status])) ? $codes[$status] : '';
+	}
+
+	// Compare rendered body to visitor browser cache with ETag
+	function checkBrowserCache() {
+		
+                if($this->headers['Content-Encoding']) {
+			$this->etag .= $this->headers['Content-Encoding']; // different ETag if body encoded
+		}
+
+                if ($this->request->ifNoneMatch($this->etag)) {
+                        $this->code = Response::NOTMODIFIED;
+                } else {
+			$this->addEtag($this->etag);
+                }
+
+	}
+
 }
 
 ?>
