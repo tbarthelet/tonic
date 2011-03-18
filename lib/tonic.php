@@ -693,6 +693,12 @@ class Response {
     public $body;
     
     /**
+     * The HTTP ETag to send
+     * @var str
+     */
+    public $etag;
+
+    /**
      * Create a response object.
      * @param Request request The request object generating this response
      * @param str uri The URL of the actual resource being used to build the response
@@ -801,6 +807,10 @@ class Response {
                 $this->addHeader('Content-Length', strlen($this->body));
             }
             
+            if ($this->etag) {
+                        $this->checkBrowserCache();
+            }
+
             header('HTTP/1.1 '.$this->code.' '.$this->getStatusCodeMessage($this->code));
             foreach ($this->headers as $header => $value) {
                 header($header.': '.$value);
@@ -829,11 +839,11 @@ class Response {
 	// Compare rendered body to visitor browser cache with ETag
 	function checkBrowserCache() {
 		
-                if($this->headers['Content-Encoding']) {
+		if($this->headers['Content-Encoding']) {
 			$this->etag .= $this->headers['Content-Encoding']; // different ETag if body encoded
 		}
 
-                if ($this->request->ifNoneMatch($this->etag)) {
+		if ($this->request->ifNoneMatch($this->etag)) {
                         $this->code = Response::NOTMODIFIED;
                 } else {
 			$this->addEtag($this->etag);
