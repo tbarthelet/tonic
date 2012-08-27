@@ -13,87 +13,55 @@ of RESTful design.
 How it works
 ============
 
-Everything is a resource, and a resource is defined as a PHP class. An annotation
-wires a URI (or a collection of URIs) to the resource, and methods that match
-the HTTP methods by name allow interaction with it.
+Everything is a resource, and a resource is defined as a PHP class. Annotations
+wire a URI to the resource and HTTP methods to class methods.
 
     /**
      * This class defines an example resource that is wired into the URI /example
      * @uri /example
      */
-    class ExampleResource extends Resource { }
-
-The incoming HTTP request is turned into a list of negotiated URIs based on the
-accept request headers which can then be used to pick the best representation
-for the response.
-
-    /**
-     * This class defines an example resource that is wired into the URI /example
-     * @uri /example
-     */
-    class ExampleResource extends Resource {
+    class ExampleResource extends Tonic\Resource {
         
-        function get($request) {
-            
-            $response = new Response($request);
-            
-            $response->code = Response::OK;
-            $response->body = 'Example response';
-            
-            return $response;
-            
+        /**
+         * @method GET
+         */
+        function exampleMethod() {
+            return new Response(Response::OK, 'Example response');
         }
       
     }
+
+The class method can do any logic it then requires and return a Response object,
+an array of status code and response body, or just a response body string.
 
 
 How to get started
 ==================
 
 The best place to get started is to get the hello world example running on your
-system, to do this you will need a web server running PHP4+.
+system, to do this you will need a web server running PHP5.3+.
 
-Place all of the Tonic files into your PHP include path so that other scripts can
-find it. By default on Windows this will probably be in "c:\php\includes\tonic" or
-on Linux/Unix it will be "/usr/share/php/tonic"
+To bootstrap Tonic, include the src/Tonic/Autoloader.php file and create an instance
+Tonic\Request. After you have defined your resource classes, load the matching
+resource, execute it, and output the response.
 
-Copy "docroot/dispatch.php" into your servers document root and edit it so that the
-require_once statement paths point to the Tonic library and the examples.
+    require_once '../src/Tonic/Autoloader.php';
 
-Finally you need to route all incoming requests to dispatch.php. How you do this
-depends on your web server. If you are using Apache, the simplest way is to copy
-the .htaccess file from "docroot/.htaccess" into your Apache document root.
+    $app = new Tonic\Application();
+    $request = new Tonic\Request();
+
+    require_once 'example.php';
+
+    $resource = $app->getResource($request);
+    $response = $resource->exec();
+    $response->output();
+
+Finally you need to route all incoming requests to this script. Have a look in the
+web directory for an example to get you going.
 
 
 Features
 ========
-
-
-Request URI
------------
-
-The URI that is processed for the request when you create the Tonic Request object
-is gather by default from the REQUEST_URI Apache variable. If you need to gather
-the URI from another $_SERVER variable or somewhere else then you can pass it into
-the Request objects constructor as a configuration option:
-
-    $request = new Request(array(
-        'uri' => $_SERVER['PATH_INFO']
-    ));
-
-
-Base URI
---------
-
-If you want to put your Tonic dispatcher at a URL that isn't the root of a domain
-then you'll need to let the Request object know so that the @uri annotations ignore
-it:
-
-    $request = new Request(array(
-        'baseUri' => '/some/base/uri'
-    ));
-
-Don't put a trailing slash on the end.
 
 
 URI annotations
@@ -104,7 +72,7 @@ Resources are attached to their URL by their @uri annotation:
     /**
      * @uri /example
      */
-    class ExampleResource extends Resource { }
+    class ExampleResource extends Tonic\Resource { }
 
 As well as a straight forward URI string, you can also use a regular expression
 so that a resource is tied to a range of URIs:
@@ -112,8 +80,12 @@ so that a resource is tied to a range of URIs:
     /**
      * @uri /example/([a-z]+)
      */
-    class ExampleResource extends Resource {
-        function get($request, $parameter) {
+    class ExampleResource extends Tonic\Resource {
+
+        /**
+         * @method GET
+         */
+        function exampleMethod($parameter) {
             ...
         }
     }
@@ -123,8 +95,12 @@ URL template and Rails route style @uri annotations are also supported:
     /**
      * @uri /users/{username}
      */
-    class ExampleResource extends Resource {
-        function get($request, $username) {
+    class ExampleResource extends Tonic\Resource {
+
+        /**
+         * @method GET
+         */
+        function exampleMethod($username) {
             ...
         }
     }
@@ -132,43 +108,33 @@ URL template and Rails route style @uri annotations are also supported:
     /**
      * @uri /users/:username
      */
-    class ExampleResource extends Resource {
-        function get($request, $username) {
+    class ExampleResource extends Tonic\Resource {
+
+        /**
+         * @method GET
+         */
+        function exampleMethod($username) {
             ...
         }
     }
 
-It is also possible for multiple resource to match the same URI, so you can
-prioritise which resource should be used by specifying a priority level as part
-of the annotation:
+It is also possible for multiple resource to match the same URI or to have more than
+one URI for the same resource:
 
     /**
+     * @uri /example
      * @uri /example/([a-z]+)
      */
-    class ExampleResource extends Resource { }
+    class ExampleResource extends Tonic\Resource { }
 
     /**
-     * @uri /example/apple 2
+     * @uri /example/apple
+     * @priority 2
      */
-    class ExampleResource extends Resource { }
+    class AnotherExampleResource extends Tonic\Resource { }
 
-By postfixing the @uri annotation with a number, of all the matching resources,
+By using the @priority annotation with a number, of all the matching resources,
 the one with the highest postfixed number will be used.
-
-
-Mimetypes
----------
-
-To handle content negotiation via filename style extensions to URLs as well the
-HTTP Accept header, a mapping between extensions and mimetypes can be provided.
-By default this list contains a number of common mappings, if you need to add one
-or more of your own, pass them into the constructor as an array:
-
-    $request = new Request(array(
-        'mimetypes' => array(
-            'ogv' => 'video/ogg'
-        )
-    ));
 
 
 Mount points
@@ -178,16 +144,309 @@ To make resources more portable, it is possible to "mount" them into your URL-sp
 by providing a namespace name to URL-space mapping. Every resource within that
 namespace will in effect have the URL-space prefixed to their @uri annotation.
 
-    $request = new Request(array(
-        'mount' => array(
-            'namespaceName' => '/some/mounted/uri'
-        )
+    $app = new Tonic\Application(array(
+        'mount' => array('namespaceName' => '/some/mounted/uri')
     ));
 
-Again, don't put a trailing slash on the end, and if you aren't using PHP5.3 and
-namespaces, you can use the @namespace annotation.
+
+Resource annotation cache
+-------------------------
+
+Parsing of resource annotations has a performance penalty. To remove this penalty and
+to remove the requirement to load all resource classes up front (and to allow opcode
+caching), a cache can be used to store the resource annotation data.
+
+Passing a cache object into the Application object at construction will cause that cache to
+be used to read and store the resource annotation metadata rather than read it from the
+source code tokens. Tonic comes with a single cache class that stores the cache on disk.
+
+Then rather than including your resource class files explicitly, the Application object
+will load them for you if you pass in the "load" option if it can't load the metadata
+from the cache.
+
+    $app = new Tonic\Application(array(
+        'load' => '../resources/*.php', // look for resource classes in here
+        'cache' => new Tonic\MetadataCache('/tmp/tonic.cache') // use the metadata cache
+    ));
+
+
+Method conditions
+-----------------
+
+Conditions can be added to methods via custom annotations that map to another class
+method. The resource method will only match if all the conditions return without throwing
+a Tonic exception.
+
+    /**
+     * @method GET
+     * @hascookie foo
+     */
+    function exampleMethod() {
+        ...
+    }
+
+    function hasCookie($cookieName) {
+        if (!isset($_COOKIE[$cookieName])) throw new Tonic\ConditionException;
+    }
+
+There are a number of built in conditions provided by the base resource class.
+
+    @priority number    Higher priority method takes precident over other matches
+    @accepts mimetype   Given mimetype must match request content type
+    @provides mimetype  Given mimetype must be in request accept array
+    @lang language      Given language must be in request accept lang array
+    @cache seconds      Send cache header for the given number of seconds
+
+You can also add code to a condition to be executed before and after the resource method.
+For example you might want to JSON decode the request input and JSON encode the response
+output of your resource method in a reusable way:
+
+    /**
+     * @method GET
+     * @json
+     */
+    function exampleMethod() {
+        ...
+    }
+
+    function json() {
+        $this->before(function ($request) {
+            if ($request->contentType == "application/json") {
+                $request->data = json_decode($request->data);
+            }
+        });
+        $this->after(function ($response) {
+            $response->contentType = "application/json";
+            $response->body = json_encode($response->body);
+        });
+    }
+
+
+Response exceptions
+-------------------
+
+The Request object and Resource objects can throw Tonic\Exceptions when a problem
+occurs that the object does not want to handle and so relinquishes control back
+to the dispatcher.
+
+If you don't want to handle a problem within your Resource class, you can throw your
+own Tonic\Exception and handle it in the dispatcher. Look at the auth example for
+an example of how.
 
 
 
-For more information, read the code. Start with the dispatcher "docroot/dispatch.php"
-and then the examples in the "examples" directory.
+Cookbook
+========
+
+
+Dependency injection container
+------------------------------
+
+You probably want a way to handle your project dependencies. Being a lightweight
+HTTP framework, Tonic won't handle this for you, but does make it easy to bolt in
+your own dependency injection container (ie. Pimple http://pimple.sensiolabs.org/).
+
+For example, to construct a Pimple container and make it available to the loaded
+resource, adjust your dispatcher.php as such:
+
+    require_once '../src/Tonic/Autoloader.php';
+    require_once '/path/to/Pimple.php';
+
+    // set up the container
+    $container = new Pimple();
+    $container['dsn'] = 'mysql://user:pass@localhost/my_db';
+    $container['database'] = function ($c) {
+        return new DB($c['dsn']);
+    };
+    $container['dataStore'] = function ($c) {
+        return new DataStore($c['database']);
+    };
+
+    $app = new Tonic\Application();
+    $request = new Tonic\Request();
+    $resource = $app->getResource($request);
+
+    // make the container available to the resource before executing it
+    $resource->container = $container;
+
+    $response = $resource->exec();
+    $response->output();
+
+
+Input processing
+----------------
+
+Although Tonic makes available the raw input data from the HTTP request, it does
+not attempt to interpret this data. If, for example, you want to process all incoming
+JSON data into an array, you can do the following:
+
+    require_once '../src/Tonic/Autoloader.php';
+
+    $app = new Tonic\Application();
+    $request = new Tonic\Request();
+
+    // decode JSON data received from HTTP request
+    if ($request->contentType == 'application/json') {
+        $request->data = json_decode($request->data);
+    }
+
+    $resource = $app->getResource($request);
+
+    $response = $resource->exec();
+    $response->output();
+
+We can also automatically encode the response in the same way:
+
+    $response = $resource->exec();
+
+    // encode output
+    if ($response->contentType == 'application/json') {
+        $response->body = json_encode($response->body);
+    }
+
+    $response->output();
+
+
+RESTful modelling
+-----------------
+
+REST systems are made up of individual resources and collection resources which contain
+individual resources. Here is an example of an implemention of an "object" collection
+resource and an "object" resource to store within it:
+
+    /**
+     * @uri /objects
+     */
+    class ObjectCollection extends Tonic\Resource {
+
+        /**
+         * @method GET
+         * @provides application/json
+         */
+        function list() {
+            $ds = $this->container['dataStore'];
+            return json_encode($ds->fetchAll());
+        }
+
+        /**
+         * @method POST
+         * @accepts application/json
+         */
+        function add() {
+            $ds = $this->container['dataStore'];
+            $data = json_decode($this->request->data);
+            $ds->add($data);
+            return new Tonic\Response(Tonic\Response::CREATED);
+        }
+    }
+
+    /**
+     * @uri /objects/:id
+     */
+    class Object extends Tonic\Resource {
+
+        /**
+         * @method GET
+         * @provides application/json
+         */
+        function display() {
+            $ds = $this->container['dataStore'];
+            return json_encode($ds->fetch($this->id));
+        }
+
+        /**
+         * @method PUT
+         * @accepts application/json
+         * @provides application/json
+         */
+        function update() {
+            $ds = $this->container['dataStore'];
+            $data = json_decode($this->request->data);
+            $ds->update($this->id, $data);
+            return $this->display();
+        }
+
+        /**
+         * @method DELETE
+         */
+        function remove() {
+            $ds = $this->container['dataStore'];
+            $ds->delete($this->id);
+            return new Tonic\Response(Tonic\Response::NOCONTENT);
+        }
+    }
+
+
+Handling errors
+---------------
+
+When an error occurs, Tonic throws an exception that extends the Tonic\Exception class. You
+can amend the front controller to catch these exceptions and handle them.
+
+    $app = new Tonic\Application();
+    $request = new Tonic\Request();
+    try {
+        $resource = $app->getResource($request);
+    } catch(Tonic\NotFoundException $e) {
+        $resource = new NotFoundResource($app, $request);
+    }
+    try {
+        $response = $resource->exec();
+    } catch(Tonic\Exception $e) {
+        $resource = new FatalErrorResource($app, $request);
+        $response = $resource->exec();
+    }
+    $response->output();
+
+
+User authentication
+-------------------
+
+Need to secure a resource? Something like the following is a good pattern.
+
+    /**
+     * @uri /secret
+     */
+    class SecureResource extends Tonic\Resource {
+
+        /**
+         * @method GET
+         * @secure aUser aPassword
+         */
+        function secret() {
+            return 'My secret';
+        }
+
+        function secure($username, $password) {
+            if (
+                isset($_SERVER['PHP_AUTH_USER']) && $_SERVER['PHP_AUTH_USER'] == $username &&
+                isset($_SERVER['PHP_AUTH_PW']) && $_SERVER['PHP_AUTH_PW'] == $password
+            ) {
+                return;
+            }
+            throw new Tonic\UnauthorizedException;
+        }
+    }
+
+    $app = new Tonic\Application();
+    $request = new Tonic\Request();
+    $resource = $app->getResource($request);
+    try {
+        $response = $resource->exec();
+    } catch(Tonic\UnauthorizedException $e) {
+        $response = new Tonic\Response(401);
+        $response->wwwAuthenticate = 'Basic realm="My Realm"';
+    }
+    $response->output();
+
+
+Full example
+------------
+
+For a full project example, checkout the "example" branch which is an orphaned branch
+containing a Tonic project that exposes a MySQL database table.
+
+
+For more information, read the code. Start with the dispatcher "web/dispatch.php"
+and the Hello world in the "src/Tyrell" directory.
+
