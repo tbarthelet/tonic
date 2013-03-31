@@ -12,6 +12,8 @@ class Application
      */
     private $options = array();
 
+    private $baseUri = '';
+
     /**
      * Metadata of the loaded resources
      */
@@ -19,7 +21,11 @@ class Application
 
     public function __construct($options = array())
     {
-        $this->baseUri = dirname($_SERVER['SCRIPT_NAME']);
+        if (isset($options['baseUri'])) {
+            $this->baseUri = $options['baseUri'];
+        } elseif (isset($_SERVER['DOCUMENT_URI'])) {
+            $this->baseUri = dirname($_SERVER['DOCUMENT_URI']);
+        }
         $this->options = $options;
 
         // load resource metadata passed in via options array
@@ -69,7 +75,7 @@ class Application
      * Load the metadata for all loaded resource classes
      * @param str $uriSpace Optional URI-space to mount the resources into
      */
-    public function loadResourceMetadata($uriSpace = NULL)
+    private function loadResourceMetadata($uriSpace = NULL)
     {
         foreach (get_declared_classes() as $className) {
             if (
@@ -95,8 +101,10 @@ class Application
     {
         foreach ($this->resources as $className => $metadata) {
             if ($metadata['namespace'][0] == $namespaceName) {
-                foreach ($metadata['uri'] as $index => $uri) {
-                    $this->resources[$className]['uri'][$index][0] = '|^'.$uriSpace.substr($uri[0], 2);
+                if (isset($metadata['uri'])) {
+                    foreach ($metadata['uri'] as $index => $uri) {
+                        $this->resources[$className]['uri'][$index][0] = '|^'.$uriSpace.substr($uri[0], 2);
+                    }
                 }
             }
         }
@@ -260,7 +268,7 @@ class Application
         return $return;
     }
 
-    public function readMethodAnnotations($className)
+    private function readMethodAnnotations($className)
     {
         if (isset($this->resources[$className]) && isset($this->resources[$className]['methods'])) {
             return $this->resources[$className]['methods'];
@@ -269,16 +277,20 @@ class Application
         $metadata = array();
 
         foreach (get_class_methods($className) as $methodName) {
-            $methodMetadata = array();
 
             $methodReflector = new \ReflectionMethod($className, $methodName);
+            if ($methodReflector->isPublic() && $methodReflector->getDeclaringClass()->name != 'Tonic\Resource') {
 
-            $docComment = $this->parseDocComment($methodReflector->getDocComment());
-            if (isset($docComment['@method'])) {
+                $methodMetadata = array();
+
+                $docComment = $this->parseDocComment($methodReflector->getDocComment());
+
                 foreach ($docComment as $annotationName => $value) {
                     $methodName = substr($annotationName, 1);
                     if (method_exists($className, $methodName)) {
-                        $methodMetadata[$methodName] = $value[0];
+                        foreach ($value as $v) {
+                            $methodMetadata[$methodName][] = $v;
+                        }
                     }
                 }
                 $metadata[$methodReflector->getName()] = $methodMetadata;
@@ -299,14 +311,10 @@ class Application
         preg_match_all('/^\s*\*[*\s]*(@.+)$/m', $comment, $items);
         if ($items && isset($items[1])) {
             foreach ($items[1] as $item) {
-                $parts = preg_split('/ +/', $item);
-                if ($parts) {
-                    foreach ($parts as $k => $part) {
-                        $parts[$k] = trim($part);
-                    }
-                    $key = array_shift($parts);
-                    $data[$key][] = $parts;
-                }
+                preg_match_all('/"[^"]+"|[^\s]+/', $item, $parts);
+                $key = array_shift($parts[0]);
+                array_walk($parts[0], create_function('&$v', '$v = trim($v, \'"\');'));
+                $data[$key][] = $parts[0];
             }
         }
 
@@ -341,8 +349,13 @@ class Application
             $r = $resource['class'].' '.$uri.' '.join(', ', $resource['priority']);
             foreach ($resource['methods'] as $methodName => $method) {
                 $r .= "\n\t\t".$methodName;
-                foreach ($method as $itemName => $item) {
-                    $r .= ' '.$itemName.'="'.join(', ', $item).'"';
+                foreach ($method as $itemName => $items) {
+                    foreach ($items as $item) {
+                        $r .= ' '.$itemName;
+                        if ($item) {
+                            $r .= '="'.join(', ', $item).'"';
+                        }
+                    }
                 }
             }
             $resources[] = $r;

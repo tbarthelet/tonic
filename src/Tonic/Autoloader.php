@@ -7,13 +7,23 @@ namespace Tonic;
  */
 class Autoloader
 {
+    private $namespace;
+
+    public function __construct($namespace = null)
+    {
+        $this->namespace = $namespace;
+
+        ini_set('unserialize_callback_func', 'spl_autoload_call');
+        spl_autoload_register(array($this, 'autoload'));
+    }
+
     /**
      * Handles autoloading of classes
      * @param string $className Name of the class to load
      */
-    public static function autoload($className)
+    public function autoload($className)
     {
-        if ('Tonic\\' === substr($className, 0, strlen('Tonic\\'))) {
+        if ($this->namespace == null || $this->namespace.'\\' === substr($className, 0, strlen($this->namespace.'\\'))) {
             $fileName = dirname(__FILE__).DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR;
             $namespace = '';
             if (false !== ($lastNsPos = strripos($className, '\\'))) {
@@ -28,5 +38,4 @@ class Autoloader
 
 }
 
-ini_set('unserialize_callback_func', 'spl_autoload_call');
-spl_autoload_register(array(new Autoloader, 'autoload'));
+new Autoloader('Tonic');

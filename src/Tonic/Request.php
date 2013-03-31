@@ -9,7 +9,7 @@ class Request
 {
     public $uri;
     public $method;
-    public $contentType = 'application/x-www-form-urlencoded';
+    public $contentType;
     public $data;
     public $accept = array();
     public $acceptLanguage = array();
@@ -48,8 +48,14 @@ class Request
 
     public function __construct($options = array())
     {
+        if (isset($options['mimetypes']) && is_array($options['mimetypes'])) {
+            foreach ($options['mimetypes'] as $ext => $mimetype) {
+                $this->mimetypes[$ext] = $mimetype;
+            }
+        }
+
         $this->uri = $this->getURIFromEnvironment($options);
-        $this->method = $this->getOption($options, 'method', array('xHttpMethodOverride', 'requestMethod'), 'GET');
+        $this->method = $this->getMethod($options);
 
         $this->contentType = $this->getContentType($options);
         $this->data = $this->getData($options);
@@ -71,7 +77,7 @@ class Request
      * @param  str $default Fallback value
      * @return str
      */
-    public function getOption($options, $configVar, $headers = NULL, $default = NULL)
+    public function getOption($options, $configVar, $headers = null, $default = null)
     {
         if (isset($options[$configVar])) {
             return $options[$configVar];
@@ -104,6 +110,40 @@ class Request
         } else {
             return NULL;
         }
+    }
+
+    private function getMethod($options)
+    {
+        // get HTTP method from HTTP header
+        $method = strtoupper($this->getHeader('requestMethod'));
+        if (!$method) {
+            $method = 'GET';
+        }
+
+        // get override value from override HTTP header and use if applicable
+        $override = strtoupper($this->getHeader('xHttpMethodOverride'));
+        if ($override && $method == 'POST') {
+            $method = $override;
+        
+        } else {
+            // get override value from URL and use if applicable
+            if (
+                isset($options['uriMethodOverride']) &&
+                $method == 'POST'
+            ) {
+                // get override value from appended bang syntax
+                if (preg_match('/![A-Z]+$/', $this->uri, $match, PREG_OFFSET_CAPTURE)) {
+                    $method = strtoupper(substr($this->uri, $match[0][1] + 1));
+                    $this->uri = substr($this->uri, 0, $match[0][1]);
+                
+                // get override value from _method querystring
+                } elseif (isset($_GET['_method'])) {
+                    $method = strtoupper($_GET['_method']);
+                }
+            }
+        }
+
+        return $this->getOption($options, 'method', null, $method);
     }
 
     private function getContentType($options)
@@ -156,9 +196,10 @@ class Request
         foreach ($parts as $part) {
             if (isset($this->mimetypes[$part])) {
                 $this->accept[] = $this->mimetypes[$part];
-            }
-            if (preg_match('/^[a-z]{2}(-[a-z]{2})?$/', $part)) {
+            } elseif (preg_match('/^[a-z]{2}(-[a-z]{2})?$/', $part)) {
                 $this->acceptLanguage[] = $part;
+            } else {
+                $uri .= '.'.$part;
             }
         }
 

@@ -1,10 +1,17 @@
 <?php
 
-// load Tonic
-require_once '../src/Tonic/Autoloader.php';
+// load autoloader (delete as appropriate)
+if (@include('../src/Tonic/Autoloader.php')) { // use Tonic autoloader
+    #new Tonic\Autoloader('myNamespace'); // add another namespace
+} elseif (!@include('../vendor/autoload.php')) { // use Composer autoloader
+    die('Could not find autoloader');
+}
 
 $config = array(
-    'load' => array('../*.php', '../src/Tyrell/*.php'), // load example resources
+    'load' => array(
+        '../src/Tyrell/*.php', // load example resources
+        '../vendor/peej/tonic/src/Tyrell/*.php' // load examples from composer's vendor directory
+    ),
     #'mount' => array('Tyrell' => '/nexus'), // mount in example resources at URL /nexus
     #'cache' => new Tonic\MetadataCacheFile('/tmp/tonic.cache') // use the metadata cache
     #'cache' => new Tonic\MetadataCacheAPC // use the metadata cache
@@ -12,17 +19,17 @@ $config = array(
 
 $app = new Tonic\Application($config);
 
-#echo $app;
+#echo $app; die;
 
 $request = new Tonic\Request();
 
-#echo $request;
+#echo $request; die;
 
 try {
 
     $resource = $app->getResource($request);
 
-    #echo $resource;
+    #echo $resource; die;
 
     $response = $resource->exec();
 
@@ -34,7 +41,7 @@ try {
     $response->wwwAuthenticate = 'Basic realm="My Realm"';
 
 } catch (Tonic\Exception $e) {
-    $response = new Tonic\Response(500, $e->getMessage());
+    $response = new Tonic\Response($e->getCode(), $e->getMessage());
 }
 
 #echo $response;

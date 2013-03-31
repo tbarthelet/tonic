@@ -42,8 +42,9 @@ The best place to get started is to get the hello world example running on your
 system, to do this you will need a web server running PHP5.3+.
 
 To bootstrap Tonic, include the src/Tonic/Autoloader.php file and create an instance
-Tonic\Request. After you have defined your resource classes, load the matching
-resource, execute it, and output the response.
+of Tonic\Application and pass it's getResource() method a Tonic\Request instance.
+After you have defined your resource classes, load the matching resource, execute it,
+and output the response.
 
     require_once '../src/Tonic/Autoloader.php';
 
@@ -232,6 +233,28 @@ to the dispatcher.
 If you don't want to handle a problem within your Resource class, you can throw your
 own Tonic\Exception and handle it in the dispatcher. Look at the auth example for
 an example of how.
+
+
+
+Contributing
+============
+
+1. Fork the code on Github.
+
+2. Install the dev dependencies via Composer using the --dev option (or install PHPSpec
+and Behat on your system yourself).
+
+    php composer.phar --dev install
+
+3. Write a spec and then hack the code to make it pass.
+
+4. Create a pull request.
+
+Don't fancy hacking the code? Then [report your problem in the Github issue
+tracker](https://github.com/peej/tonic/issues).
+
+For more information, read the code. Start with the dispatcher "web/dispatch.php"
+and the Hello world in the "src/Tyrell" directory.
 
 
 
@@ -445,8 +468,3 @@ Full example
 
 For a full project example, checkout the "example" branch which is an orphaned branch
 containing a Tonic project that exposes a MySQL database table.
-
-
-For more information, read the code. Start with the dispatcher "web/dispatch.php"
-and the Hello world in the "src/Tyrell" directory.
-
