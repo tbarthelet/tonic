@@ -468,3 +468,7 @@ Full example
 
 For a full project example, checkout the "example" branch which is an orphaned branch
 containing a Tonic project that exposes a MySQL database table.
+
+
+[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/tbarthelet/tonic/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
+
